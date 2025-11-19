@@ -8,38 +8,60 @@ from redis.asyncio import Redis
 
 logger = get_logger()
 
-async def get_users():
+# Normalize bases and prefixes from environment
+_user_base = settings.USER_MANAGEMENT_URL.rstrip("/")
+_user_has_v1 = _user_base.endswith("/api/v1")
+_user_prefix = "" if _user_has_v1 else "/api/v1"
+
+_prop_base = settings.PROPERTY_LISTING_URL.rstrip("/")
+# A lot of gateways expose docs at /docs; ensure we don't keep that in API base
+if "/docs" in _prop_base:
+    _prop_base = _prop_base.replace("/docs", "")
+_prop_has_v1 = _prop_base.endswith("/api/v1")
+_prop_prefix = "" if _prop_has_v1 else "/api/v1"
+
+async def get_users(admin_token: str, skip: int = 0, limit: int = 100):
     async with AsyncClient() as client:
         response = await client.get(
-            f"{settings.USER_MANAGEMENT_URL}/api/v1/users",
-            headers={"Authorization": f"Bearer {settings.USER_TOKEN}"}
+            f"{_user_base}{_user_prefix}/admin/users",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            params={"skip": skip, "limit": limit},
         )
         response.raise_for_status()
         return response.json()
 
-async def update_user(user_id: str, data: dict):
+async def update_user(user_id: str, data: dict, admin_token: str):
     async with AsyncClient() as client:
         response = await client.put(
-            f"{settings.USER_MANAGEMENT_URL}/api/v1/users/{user_id}",
+            f"{_user_base}{_user_prefix}/admin/users/{user_id}",
             json=data,
-            headers={"Authorization": f"Bearer {settings.USER_TOKEN}"}
+            headers={"Authorization": f"Bearer {admin_token}"}
         )
         response.raise_for_status()
         return response.json()
 
-async def get_properties():
+async def get_user_by_id(user_id: str, admin_token: str):
     async with AsyncClient() as client:
         response = await client.get(
-            f"{settings.PROPERTY_LISTING_URL}/api/v1/properties",
+            f"{_user_base}{_user_prefix}/admin/users/{user_id}",
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        response.raise_for_status()
+        return response.json()
+
+async def get_properties(admin_token: str):
+    async with AsyncClient() as client:
+        response = await client.get(
+            f"{_prop_base}{_prop_prefix}/properties",
             headers={"Authorization": f"Bearer {settings.PROPERTY_TOKEN}"}
         )
         response.raise_for_status()
         return response.json()
 
-async def approve_property(property_id: str, admin_id: str): # Added admin_id here
+async def approve_property(property_id: str, admin_id: str): 
     async with AsyncClient() as client:
         response = await client.post(
-            f"{settings.PROPERTY_LISTING_URL}/api/v1/properties/{property_id}/approve",
+            f"{_prop_base}{_prop_prefix}/properties/{property_id}/approve",
             headers={"Authorization": f"Bearer {settings.PROPERTY_TOKEN}"}
         )
         response.raise_for_status()

@@ -10,6 +10,13 @@ import json # Added import for json
 
 logger = get_logger()
 
+# Normalize service bases
+_um_base = settings.USER_MANAGEMENT_URL.rstrip("/")
+_um_has_v1 = _um_base.endswith("/api/v1")
+_um_prefix = "" if _um_has_v1 else "/api/v1"
+
+_supabase_base = settings.SUPABASE_URL.rstrip("/")
+
 async def generate_user_report(lang: str = "en"):
     redis = Redis.from_url(settings.REDIS_URL)
     cache_key = f"report:users:{lang}"
@@ -19,7 +26,7 @@ async def generate_user_report(lang: str = "en"):
 
     async with AsyncClient() as client:
         response = await client.get(
-            f"{settings.USER_MANAGEMENT_URL}/api/v1/users",
+            f"{_um_base}{_um_prefix}/users",
             headers={"Authorization": f"Bearer {settings.USER_TOKEN}"}
         )
         users = response.json()
@@ -50,7 +57,7 @@ async def export_report(report_type: str, lang: str = "en"):
         df.to_csv(csv_buffer, index=False)
         async with AsyncClient() as client:
             response = await client.post(
-                f"{settings.SUPABASE_URL}/storage/v1/object/reports/{report_type}_{lang}.csv",
+                f"{_supabase_base}/storage/v1/object/reports/{report_type}_{lang}.csv",
                 content=csv_buffer.getvalue(),
                 headers={"Authorization": f"Bearer {settings.SUPABASE_KEY}"}
             )
@@ -65,7 +72,7 @@ async def export_report(report_type: str, lang: str = "en"):
     doc.build([table])
     async with AsyncClient() as client:
         response = await client.post(
-            f"{settings.SUPABASE_URL}/storage/v1/object/reports/{report_type}_{lang}.pdf",
+            f"{_supabase_base}/storage/v1/object/reports/{report_type}_{lang}.pdf",
             content=pdf_buffer.getvalue(),
             headers={"Authorization": f"Bearer {settings.SUPABASE_KEY}"}
         )

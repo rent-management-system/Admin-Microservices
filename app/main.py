@@ -4,6 +4,7 @@ from fastapi_limiter import FastAPILimiter
 from redis.asyncio import Redis
 from app.config import settings
 from app.routers import admin
+from app.routers import auth_proxy
 
 app = FastAPI(title="Admin Management Microservice")
 app.add_middleware(CORSMiddleware, allow_origins=["https://*.huggingface.co"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -14,3 +15,4 @@ async def startup():
     await FastAPILimiter.init(redis)
 
 app.include_router(admin.router)
+app.include_router(auth_proxy.router)
