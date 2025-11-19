@@ -22,3 +22,10 @@ class PropertyResponse(BaseModel):
 class ReportResponse(BaseModel):
     title: str
     data: dict
+
+class MetricsTotalsResponse(BaseModel):
+    total_users: int
+    total_properties: int
+    total_payments: int
+    total_services: int
+    healthy_services: int

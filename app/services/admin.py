@@ -409,3 +409,171 @@ async def get_property_metrics():
         except Exception:
             data = resp.text or "ok"
         return {"status_code": resp.status_code, "data": data}
+
+async def _extract_count_from_payload(payload) -> int | None:
+    """Try common patterns to extract a total count from a JSON payload."""
+    try:
+        if isinstance(payload, dict):
+            for key in ("total", "count", "total_count", "totalItems", "items_total"):
+                if isinstance(payload.get(key), int):
+                    return int(payload[key])
+            # Some APIs wrap list under data/results with a separate total
+            meta = payload.get("meta") or payload.get("pagination")
+            if isinstance(meta, dict):
+                for key in ("total", "count", "total_count"):
+                    if isinstance(meta.get(key), int):
+                        return int(meta[key])
+            # If list is present, we can fallback to its length
+            for lk in ("data", "results", "items"):
+                if isinstance(payload.get(lk), list):
+                    return len(payload[lk])
+        elif isinstance(payload, list):
+            return len(payload)
+    except Exception:
+        return None
+    return None
+
+async def _head_or_first_for_total(client: AsyncClient, url: str, headers: dict | None = None) -> int | None:
+    """Try common approaches to get total count without fetching everything.
+    - Try HEAD to see if X-Total-Count header is present
+    - Try GET with limit=1 to see headers or meta
+    """
+    try:
+        resp = await client.head(url, headers=headers, params={"limit": 1})
+        for hk in ("X-Total-Count", "X-Total", "Total-Count"):
+            if hk in resp.headers:
+                return int(resp.headers[hk])
+    except Exception:
+        pass
+    try:
+        resp = await client.get(url, headers=headers, params={"limit": 1, "skip": 0})
+        for hk in ("X-Total-Count", "X-Total", "Total-Count"):
+            if hk in resp.headers:
+                return int(resp.headers[hk])
+        try:
+            payload = resp.json()
+        except Exception:
+            payload = None
+        cnt = await _extract_count_from_payload(payload)
+        return cnt
+    except Exception:
+        return None
+
+async def get_dashboard_totals(admin_token: str | None = None) -> dict:
+    """Aggregate totals: users, properties, payments, and services health.
+
+    - Users: try /admin/users count endpoints, then header-based totals, then length fallback
+    - Properties: try /properties/metrics for total, then similar header/meta fallbacks
+    - Payments: use get_payment_metrics and extract total from common fields
+    - Services: reuse get_health to compute totals and healthy count
+    """
+    totals = {
+        "total_users": 0,
+        "total_properties": 0,
+        "total_payments": 0,
+        "total_services": 0,
+        "healthy_services": 0,
+    }
+
+    user_headers = {"Authorization": f"Bearer {admin_token or settings.USER_TOKEN}"}
+    prop_headers = {"Authorization": f"Bearer {settings.PROPERTY_TOKEN}"}
+
+    async with AsyncClient(timeout=15.0) as client:
+        # Users total
+        user_base = _user_base
+        uprefix = _user_prefix
+        candidates = [
+            f"{user_base}{uprefix}/admin/users/count",
+            f"{user_base}{uprefix}/users/count",
+        ]
+        users_total = None
+        for u in candidates:
+            try:
+                r = await client.get(u, headers=user_headers)
+                if 200 <= r.status_code < 300:
+                    try:
+                        body = r.json()
+                    except Exception:
+                        body = {"total": int(r.text)} if r.text.strip().isdigit() else None
+                    users_total = await _extract_count_from_payload(body)
+                    if users_total is None and isinstance(body, dict):
+                        # Some count endpoints return {count: N}
+                        c = body.get("count")
+                        if isinstance(c, int):
+                            users_total = c
+                    if users_total is not None:
+                        break
+            except Exception:
+                continue
+        if users_total is None:
+            users_total = await _head_or_first_for_total(client, f"{user_base}{uprefix}/admin/users", headers=user_headers)
+        if users_total is None:
+            # Fallback: get first page with bigger limit
+            try:
+                r = await client.get(f"{user_base}{uprefix}/admin/users", headers=user_headers, params={"skip": 0, "limit": 1000})
+                if 200 <= r.status_code < 300:
+                    users_total = await _extract_count_from_payload(r.json())
+            except Exception:
+                pass
+        totals["total_users"] = int(users_total or 0)
+
+        # Properties total
+        # Prefer metrics endpoint
+        prop_metrics = await get_property_metrics()
+        prop_total = None
+        pdata = prop_metrics.get("data") if isinstance(prop_metrics, dict) else None
+        if isinstance(pdata, dict):
+            for k in ("total_properties", "properties_total", "count", "total"):
+                if isinstance(pdata.get(k), int):
+                    prop_total = int(pdata[k])
+                    break
+        if prop_total is None:
+            prop_total = await _head_or_first_for_total(client, f"{_prop_base}{_prop_prefix}/properties", headers=prop_headers)
+        if prop_total is None:
+            try:
+                r = await client.get(f"{_prop_base}{_prop_prefix}/properties", headers=prop_headers, params={"offset": 0, "limit": 100})
+                if 200 <= r.status_code < 300:
+                    prop_total = await _extract_count_from_payload(r.json())
+            except Exception:
+                pass
+        totals["total_properties"] = int(prop_total or 0)
+
+        # Payments total via payment metrics
+        pay_metrics = await get_payment_metrics()
+        pay_total = None
+        pdata = pay_metrics.get("data") if isinstance(pay_metrics, dict) else None
+        if isinstance(pdata, dict):
+            for k in ("total_payments", "payments_count", "total_transactions", "count", "total"):
+                if isinstance(pdata.get(k), int):
+                    pay_total = int(pdata[k])
+                    break
+        elif isinstance(pdata, str):
+            # If metrics came back as string (e.g., Prometheus text), try parsing common pattern
+            try:
+                import re
+                m = re.search(r"payments_total\s+(\d+)", pdata)
+                if m:
+                    pay_total = int(m.group(1))
+            except Exception:
+                pass
+        totals["total_payments"] = int(pay_total or 0)
+
+    # Services health
+    health = await get_health(verbose=False)
+    # Exclude summary keys
+    service_keys = [k for k in health.keys() if k not in ("overall_status", "summary")]
+    total_services = 0
+    healthy = 0
+    for k in service_keys:
+        v = health[k]
+        if isinstance(v, dict) and "status" in v and v.get("status") == "error":
+            total_services += 1
+            continue
+        total_services += 1
+        code = v.get("status_code") if isinstance(v, dict) else None
+        if isinstance(code, int) and code < 400:
+            healthy += 1
+    totals["total_services"] = total_services
+    totals["healthy_services"] = healthy
+
+    return totals

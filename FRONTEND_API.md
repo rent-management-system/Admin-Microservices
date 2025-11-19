@@ -35,6 +35,15 @@ Schemas
     data: object
   }
 
+- MetricsTotalsResponse
+  {
+    total_users: number,
+    total_properties: number,
+    total_payments: number,
+    total_services: number,
+    healthy_services: number
+  }
+
 Endpoints
 
 1) Auth (for Swagger/dev only)

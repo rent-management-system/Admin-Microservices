@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_limiter.depends import RateLimiter
-from app.schemas.admin import UserResponse, PropertyResponse, ReportResponse
-from app.services.admin import get_users, get_user_by_id, update_user, get_properties, approve_property, get_health, get_property_metrics, get_payment_metrics, get_payment_health, get_search_health, get_ai_health
+from app.schemas.admin import UserResponse, PropertyResponse, ReportResponse, MetricsTotalsResponse
+from app.services.admin import get_users, get_user_by_id, update_user, get_properties, approve_property, get_health, get_property_metrics, get_payment_metrics, get_payment_health, get_search_health, get_ai_health, get_dashboard_totals
 from app.services.reporting import generate_user_report, export_report
 from app.dependencies.auth import get_current_admin, oauth2_scheme
 from structlog import get_logger
@@ -75,6 +75,13 @@ async def payment_service_metrics():
     status = await get_payment_metrics()
     logger.info("Fetched payment metrics", status_code=status.get("status_code"))
     return status
+
+# Aggregated totals for dashboard widgets
+@router.get("/metrics/totals", response_model=MetricsTotalsResponse, dependencies=[Depends(RateLimiter(times=5, seconds=60))])
+async def metrics_totals(admin: dict = Depends(get_current_admin), token: str = Depends(oauth2_scheme)):
+    totals = await get_dashboard_totals(token)
+    logger.info("Fetched dashboard totals", admin_id=admin["id"])
+    return totals
 
 # Backward-compatible alias: some clients may still call /ai/health
 @router.get("/ai/health")
