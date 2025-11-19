@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 class UserResponse(BaseModel):
     id: str
@@ -29,3 +29,5 @@ class MetricsTotalsResponse(BaseModel):
     total_payments: int
     total_services: int
     healthy_services: int
+    properties_by_type: Dict[str, int] | None = None
+    properties_by_status: Dict[str, int] | None = None

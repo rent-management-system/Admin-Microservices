@@ -473,6 +473,7 @@ async def get_dashboard_totals(admin_token: str | None = None) -> dict:
         "total_payments": 0,
         "total_services": 0,
         "healthy_services": 0,
+        "properties_by_type": None,
     }
 
     user_headers = {"Authorization": f"Bearer {admin_token or settings.USER_TOKEN}"}
@@ -521,22 +522,109 @@ async def get_dashboard_totals(admin_token: str | None = None) -> dict:
         # Prefer metrics endpoint
         prop_metrics = await get_property_metrics()
         prop_total = None
+        prop_by_type: dict[str, int] | None = None
+        prop_by_status: dict[str, int] | None = None
         pdata = prop_metrics.get("data") if isinstance(prop_metrics, dict) else None
         if isinstance(pdata, dict):
             for k in ("total_properties", "properties_total", "count", "total"):
                 if isinstance(pdata.get(k), int):
                     prop_total = int(pdata[k])
                     break
+            # Try extracting breakdown by type from common shapes
+            # 1) { by_type: { "apartment": 10, "house": 5 } }
+            if isinstance(pdata.get("by_type"), dict):
+                # ensure ints
+                prop_by_type = {str(t): int(v) for t, v in pdata["by_type"].items() if isinstance(v, int)}
+            # 2) { types: { ... } } or { type_breakdown: { ... } }
+            for alt in ("types", "type_breakdown", "properties_by_type"):
+                if prop_by_type is None and isinstance(pdata.get(alt), dict):
+                    prop_by_type = {str(t): int(v) for t, v in pdata[alt].items() if isinstance(v, int)}
+            # 3) { by_type: [ { type: "apartment", count: 10 }, ... ] }
+            if prop_by_type is None and isinstance(pdata.get("by_type"), list):
+                tmp = {}
+                for item in pdata["by_type"]:
+                    if isinstance(item, dict):
+                        t = item.get("type") or item.get("property_type")
+                        c = item.get("count") or item.get("total")
+                        if isinstance(t, str) and isinstance(c, int):
+                            tmp[str(t)] = int(c)
+                if tmp:
+                    prop_by_type = tmp
+            # Status breakdown from common shapes
+            if isinstance(pdata.get("by_status"), dict):
+                prop_by_status = {str(s): int(v) for s, v in pdata["by_status"].items() if isinstance(v, int)}
+            for alt in ("statuses", "status_breakdown", "properties_by_status"):
+                if prop_by_status is None and isinstance(pdata.get(alt), dict):
+                    prop_by_status = {str(s): int(v) for s, v in pdata[alt].items() if isinstance(v, int)}
+            if prop_by_status is None and isinstance(pdata.get("by_status"), list):
+                tmp = {}
+                for item in pdata["by_status"]:
+                    if isinstance(item, dict):
+                        s = item.get("status") or item.get("state")
+                        c = item.get("count") or item.get("total")
+                        if isinstance(s, str) and isinstance(c, int):
+                            tmp[str(s)] = int(c)
+                if tmp:
+                    prop_by_status = tmp
         if prop_total is None:
             prop_total = await _head_or_first_for_total(client, f"{_prop_base}{_prop_prefix}/properties", headers=prop_headers)
-        if prop_total is None:
+        # If we still need totals or type breakdown, fetch first page and compute
+        if prop_total is None or prop_by_type is None or prop_by_status is None:
             try:
-                r = await client.get(f"{_prop_base}{_prop_prefix}/properties", headers=prop_headers, params={"offset": 0, "limit": 100})
+                r = await client.get(
+                    f"{_prop_base}{_prop_prefix}/properties",
+                    headers=prop_headers,
+                    params={"offset": 0, "limit": 500},
+                )
                 if 200 <= r.status_code < 300:
-                    prop_total = await _extract_count_from_payload(r.json())
+                    body = None
+                    try:
+                        body = r.json()
+                    except Exception:
+                        body = None
+                    if prop_total is None:
+                        prop_total = await _extract_count_from_payload(body)
+                    # If body is a list, compute types; if dict, look under common keys
+                    items = None
+                    if isinstance(body, list):
+                        items = body
+                    elif isinstance(body, dict):
+                        for lk in ("data", "results", "items"):
+                            if isinstance(body.get(lk), list):
+                                items = body[lk]
+                                break
+                    if isinstance(items, list):
+                        counts: dict[str, int] = {}
+                        # property type counts
+                        if prop_by_type is None:
+                            for it in items:
+                                if not isinstance(it, dict):
+                                    continue
+                                t = it.get("type") or it.get("property_type") or it.get("category")
+                                if isinstance(t, str) and t.strip():
+                                    key = t.strip()
+                                    counts[key] = counts.get(key, 0) + 1
+                            if counts:
+                                prop_by_type = counts
+                        # property status counts
+                        if prop_by_status is None:
+                            s_counts: dict[str, int] = {}
+                            for it in items:
+                                if not isinstance(it, dict):
+                                    continue
+                                s = it.get("status") or it.get("state")
+                                if isinstance(s, str) and s.strip():
+                                    key = s.strip()
+                                    s_counts[key] = s_counts.get(key, 0) + 1
+                            if s_counts:
+                                prop_by_status = s_counts
             except Exception:
                 pass
         totals["total_properties"] = int(prop_total or 0)
+        if prop_by_type:
+            totals["properties_by_type"] = prop_by_type
+        if prop_by_status:
+            totals["properties_by_status"] = prop_by_status
 
         # Payments total via payment metrics
         pay_metrics = await get_payment_metrics()

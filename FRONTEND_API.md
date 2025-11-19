@@ -41,8 +41,17 @@ Schemas
     total_properties: number,
     total_payments: number,
     total_services: number,
-    healthy_services: number
+    healthy_services: number,
+    properties_by_type?: { [type: string]: number },
+    properties_by_status?: { [status: string]: number }
   }
+  - Notes:
+    - Users: counts via upstream `/admin/users/count` or headers/meta, with graceful fallbacks.
+    - Properties: uses upstream `/properties/metrics` then falls back to headers/meta.
+      - When available, the response includes `properties_by_type` for KPI cards (e.g., apartment/house/land counts). If the upstream does not provide a breakdown, backend will sample the first page and compute counts using `type`/`property_type`/`category` fields.
+      - Use `properties_by_status` to render status distribution graphs (e.g., approved/pending/rejected). If not provided by the upstream metrics, backend will infer by scanning the first page using `status`/`state` fields.
+    - Payments: derives from payment metrics (JSON or Prometheus text).
+    - Services: derived from unified health to compute total vs healthy.
 
 Endpoints
 
