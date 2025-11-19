@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_limiter.depends import RateLimiter
 from app.schemas.admin import UserResponse, PropertyResponse, ReportResponse
-from app.services.admin import get_users, get_user_by_id, update_user, get_properties, approve_property, get_health, get_property_metrics, get_payment_metrics
+from app.services.admin import get_users, get_user_by_id, update_user, get_properties, approve_property, get_health, get_property_metrics, get_payment_metrics, get_payment_health, get_search_health, get_ai_health
 from app.services.reporting import generate_user_report, export_report
 from app.dependencies.auth import get_current_admin, oauth2_scheme
 from structlog import get_logger
@@ -57,9 +57,10 @@ async def approve_property_endpoint(property_id: str, admin: dict = Depends(get_
     return {"status": "success"}
 
 @router.get("/health")
-async def check_health():
-    health = await get_health()
-    logger.info("Fetched health status")
+async def check_health(verbose: bool = False):
+    """Unified health endpoint. Use verbose=true to include tried URLs."""
+    health = await get_health(verbose=verbose)
+    logger.info("Fetched health status", verbose=verbose)
     return health
 
 @router.get("/properties/metrics")
@@ -75,11 +76,46 @@ async def payment_service_metrics():
     logger.info("Fetched payment metrics", status_code=status.get("status_code"))
     return status
 
+# Backward-compatible alias: some clients may still call /ai/health
+@router.get("/ai/health")
+async def ai_service_health_alias():
+    """Backward-compatible health proxy for the AI recommendation service.
+    Prefer using the unified /api/v1/admin/health endpoint.
+    """
+    status = await get_ai_health()
+    logger.info("Fetched AI recommendation health (alias)", status_code=status.get("status_code"))
+    return status
+
+# Backward-compatible alias: some clients may still call /payments/health
+@router.get("/payments/health")
+async def payment_service_health_alias():
+    """Backward-compatible health proxy for the payment service.
+    Prefer using the unified /api/v1/admin/health endpoint.
+    """
+    status = await get_payment_health()
+    logger.info("Fetched payment health (alias)", status_code=status.get("status_code"))
+    return status
+
+# Backward-compatible alias: some clients may still call /search/health
+@router.get("/search/health")
+async def search_service_health_alias():
+    """Backward-compatible health proxy for the search/filters service.
+    Prefer using the unified /api/v1/admin/health endpoint.
+    """
+    status = await get_search_health()
+    logger.info("Fetched search health (alias)", status_code=status.get("status_code"))
+    return status
+
 @router.get("/reports/users", response_model=ReportResponse)
-async def user_report(lang: str = "en", admin: dict = Depends(get_current_admin)):
-    report = await generate_user_report(lang)
+async def user_report(lang: str = "en", admin: dict = Depends(get_current_admin), token: str = Depends(oauth2_scheme)):
+    report = await generate_user_report(lang, token)
+    # Wrap into ReportResponse schema: title and data
+    title = report.get("title", "User Report") if isinstance(report, dict) else "User Report"
+    data = report if isinstance(report, dict) else {"report": report}
+    if isinstance(data, dict) and "title" in data:
+        data = {k: v for k, v in data.items() if k != "title"}
     logger.info("Generated user report", lang=lang, admin_id=admin["id"])
-    return report
+    return {"title": title, "data": data}
 
 @router.get("/reports/export/{type}")
 async def export_report_endpoint(type: str, lang: str = "en", admin: dict = Depends(get_current_admin)):
