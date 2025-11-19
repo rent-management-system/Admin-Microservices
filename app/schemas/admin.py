@@ -5,9 +5,9 @@ class UserResponse(BaseModel):
     id: str
     email: str
     role: str
-    phone: Optional[str]
+    phone: Optional[str] = None
     is_active: bool
-    created_at: str
+    created_at: Optional[str] = None
 
 class PropertyResponse(BaseModel):
     id: str

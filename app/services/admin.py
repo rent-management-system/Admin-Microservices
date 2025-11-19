@@ -8,6 +8,21 @@ from redis.asyncio import Redis
 
 logger = get_logger()
 
+def _normalize_user(u: dict) -> dict:
+    """Normalize upstream user payload to our schema.
+    - Map phone_number -> phone
+    - Ensure id key present (already normalized in auth, but safe here too)
+    """
+    if not isinstance(u, dict):
+        return u
+    phone = u.get("phone") if u.get("phone") is not None else u.get("phone_number")
+    if phone is not None:
+        u["phone"] = phone
+    uid = u.get("id") or u.get("_id") or u.get("user_id") or u.get("sub") or u.get("uid")
+    if uid is not None:
+        u["id"] = uid
+    return u
+
 # Normalize bases and prefixes from environment
 _user_base = settings.USER_MANAGEMENT_URL.rstrip("/")
 _user_has_v1 = _user_base.endswith("/api/v1")
@@ -28,7 +43,10 @@ async def get_users(admin_token: str, skip: int = 0, limit: int = 100):
             params={"skip": skip, "limit": limit},
         )
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        if isinstance(data, list):
+            return [_normalize_user(item) for item in data]
+        return data
 
 async def get_payment_health():
     base = settings.PAYMENT_URL.rstrip("/")
