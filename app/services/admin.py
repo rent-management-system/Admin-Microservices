@@ -84,11 +84,20 @@ async def get_health():
             try:
                 # Dynamically get the URL from settings based on service name
                 service_url_key = f"{service.upper()}_URL"
-                service_url = getattr(settings, service_url_key)
-                response = await client.get(
-                    f"{service_url}/health"
-                )
-                health[service] = response.json()
+                service_url = getattr(settings, service_url_key).rstrip("/")
+                # First try '<base>/health'
+                resp = await client.get(f"{service_url}/health")
+                if resp.status_code >= 400:
+                    # If base endswith '/api/v1', retry without it for '/health'
+                    if service_url.endswith("/api/v1"):
+                        root_base = service_url[: -len("/api/v1")]
+                        resp = await client.get(f"{root_base}/health")
+                # Parse JSON if possible; otherwise keep plain text
+                try:
+                    health_payload = resp.json()
+                except Exception:
+                    health_payload = {"message": (resp.text or "ok")}
+                health[service] = {"status_code": resp.status_code, "data": health_payload}
             except Exception as e:
                 health[service] = {"status": "error", "error": str(e)}
     return health

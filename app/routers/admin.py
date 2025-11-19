@@ -41,9 +41,9 @@ async def approve_property_endpoint(property_id: str, admin: dict = Depends(get_
     return {"status": "success"}
 
 @router.get("/health")
-async def check_health(admin: dict = Depends(get_current_admin)):
+async def check_health():
     health = await get_health()
-    await logger.info("Fetched health status", admin_id=admin["id"])
+    await logger.info("Fetched health status")
     return health
 
 @router.get("/reports/users", response_model=ReportResponse)
