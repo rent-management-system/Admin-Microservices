@@ -101,3 +101,12 @@ async def get_health():
             except Exception as e:
                 health[service] = {"status": "error", "error": str(e)}
     return health
+
+async def get_property_metrics():
+    async with AsyncClient() as client:
+        response = await client.get(
+            f"{_prop_base}{_prop_prefix}/properties/metrics",
+            headers={"Authorization": f"Bearer {settings.PROPERTY_TOKEN}"}
+        )
+        response.raise_for_status()
+        return response.json()

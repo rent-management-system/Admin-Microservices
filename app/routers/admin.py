@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_limiter.depends import RateLimiter
 from app.schemas.admin import UserResponse, PropertyResponse, ReportResponse
-from app.services.admin import get_users, get_user_by_id, update_user, get_properties, approve_property, get_health
+from app.services.admin import get_users, get_user_by_id, update_user, get_properties, approve_property, get_health, get_property_metrics
 from app.services.reporting import generate_user_report, export_report
 from app.dependencies.auth import get_current_admin, oauth2_scheme
 from structlog import get_logger
@@ -45,6 +45,12 @@ async def check_health():
     health = await get_health()
     await logger.info("Fetched health status")
     return health
+
+@router.get("/properties/metrics")
+async def properties_metrics(admin: dict = Depends(get_current_admin)):
+    metrics = await get_property_metrics()
+    await logger.info("Fetched property metrics", admin_id=admin["id"])
+    return metrics
 
 @router.get("/reports/users", response_model=ReportResponse)
 async def user_report(lang: str = "en", admin: dict = Depends(get_current_admin)):
