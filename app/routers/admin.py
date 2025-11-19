@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_limiter.depends import RateLimiter
 from app.schemas.admin import UserResponse, PropertyResponse, ReportResponse
-from app.services.admin import get_users, get_user_by_id, update_user, get_properties, approve_property, get_health, get_property_metrics, get_payment_health, get_payment_metrics, get_search_health
+from app.services.admin import get_users, get_user_by_id, update_user, get_properties, approve_property, get_health, get_property_metrics, get_payment_health, get_payment_metrics, get_search_health, get_ai_health
 from app.services.reporting import generate_user_report, export_report
 from app.dependencies.auth import get_current_admin, oauth2_scheme
 from structlog import get_logger
@@ -87,6 +87,13 @@ async def search_service_health():
     """Non-auth proxy to search/filters service health endpoint."""
     status = await get_search_health()
     await logger.info("Fetched search health", status_code=status.get("status_code"))
+    return status
+
+@router.get("/ai/health")
+async def ai_service_health():
+    """Non-auth proxy to AI recommendation service health endpoint."""
+    status = await get_ai_health()
+    await logger.info("Fetched AI recommendation health", status_code=status.get("status_code"))
     return status
 
 @router.get("/reports/users", response_model=ReportResponse)

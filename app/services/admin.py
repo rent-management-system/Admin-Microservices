@@ -46,6 +46,20 @@ async def get_payment_health():
             data = resp.text or "ok"
         return {"status_code": resp.status_code, "data": data}
 
+async def get_ai_health():
+    base = settings.AI_RECOMMENDATION_URL.rstrip("/")
+    async with AsyncClient() as client:
+        url = f"{base}/health"
+        resp = await client.get(url)
+        if resp.status_code >= 400 and base.endswith("/api/v1"):
+            root = base[: -len("/api/v1")]
+            resp = await client.get(f"{root}/health")
+        try:
+            data = resp.json()
+        except Exception:
+            data = resp.text or "ok"
+        return {"status_code": resp.status_code, "data": data}
+
 async def get_search_health():
     base = settings.SEARCH_FILTERS_URL.rstrip("/")
     async with AsyncClient() as client:
