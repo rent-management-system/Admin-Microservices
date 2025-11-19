@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_limiter.depends import RateLimiter
 from app.schemas.admin import UserResponse, PropertyResponse, ReportResponse
-from app.services.admin import get_users, get_user_by_id, update_user, get_properties, approve_property, get_health, get_property_metrics
+from app.services.admin import get_users, get_user_by_id, update_user, get_properties, approve_property, get_health, get_property_metrics, get_payment_health, get_payment_metrics, get_search_health
 from app.services.reporting import generate_user_report, export_report
 from app.dependencies.auth import get_current_admin, oauth2_scheme
 from structlog import get_logger
@@ -29,9 +29,25 @@ async def update_user_endpoint(user_id: str, data: dict, admin: dict = Depends(g
     return user
 
 @router.get("/properties", response_model=List[PropertyResponse])
-async def list_properties(admin: dict = Depends(get_current_admin), token: str = Depends(oauth2_scheme)):
-    properties = await get_properties(token)
-    await logger.info("Fetched properties", admin_id=admin["id"])
+async def list_properties(
+    location: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    amenities: List[str] | None = None,
+    search: str | None = None,
+    offset: int = 0,
+    limit: int = 20,
+):
+    properties = await get_properties(
+        location=location,
+        min_price=min_price,
+        max_price=max_price,
+        amenities=amenities,
+        search=search,
+        offset=offset,
+        limit=limit,
+    )
+    await logger.info("Fetched properties")
     return properties
 
 @router.post("/properties/{property_id}/approve")
@@ -47,10 +63,31 @@ async def check_health():
     return health
 
 @router.get("/properties/metrics")
-async def properties_metrics(admin: dict = Depends(get_current_admin)):
+async def properties_metrics():
     metrics = await get_property_metrics()
-    await logger.info("Fetched property metrics", admin_id=admin["id"])
+    await logger.info("Fetched property metrics")
     return metrics
+
+@router.get("/payments/health")
+async def payment_service_health():
+    """Non-auth proxy to payment service health endpoint."""
+    status = await get_payment_health()
+    await logger.info("Fetched payment health", status_code=status.get("status_code"))
+    return status
+
+@router.get("/payments/metrics")
+async def payment_service_metrics():
+    """Non-auth proxy to payment service metrics endpoint."""
+    status = await get_payment_metrics()
+    await logger.info("Fetched payment metrics", status_code=status.get("status_code"))
+    return status
+
+@router.get("/search/health")
+async def search_service_health():
+    """Non-auth proxy to search/filters service health endpoint."""
+    status = await get_search_health()
+    await logger.info("Fetched search health", status_code=status.get("status_code"))
+    return status
 
 @router.get("/reports/users", response_model=ReportResponse)
 async def user_report(lang: str = "en", admin: dict = Depends(get_current_admin)):

@@ -30,6 +30,51 @@ async def get_users(admin_token: str, skip: int = 0, limit: int = 100):
         response.raise_for_status()
         return response.json()
 
+async def get_payment_health():
+    base = settings.PAYMENT_URL.rstrip("/")
+    async with AsyncClient() as client:
+        # Prefer explicit /api/v1/health if base includes /api/v1; otherwise try /health
+        url = f"{base}/health"
+        resp = await client.get(url)
+        # Fallback: if base ends with /api/v1 and first attempt fails, try root /health
+        if resp.status_code >= 400 and base.endswith("/api/v1"):
+            root = base[: -len("/api/v1")]
+            resp = await client.get(f"{root}/health")
+        try:
+            data = resp.json()
+        except Exception:
+            data = resp.text or "ok"
+        return {"status_code": resp.status_code, "data": data}
+
+async def get_search_health():
+    base = settings.SEARCH_FILTERS_URL.rstrip("/")
+    async with AsyncClient() as client:
+        url = f"{base}/health"
+        resp = await client.get(url)
+        # No special /api/v1 logic unless base includes it
+        if resp.status_code >= 400 and base.endswith("/api/v1"):
+            root = base[: -len("/api/v1")]
+            resp = await client.get(f"{root}/health")
+        try:
+            data = resp.json()
+        except Exception:
+            data = resp.text or "ok"
+        return {"status_code": resp.status_code, "data": data}
+
+async def get_payment_metrics():
+    base = settings.PAYMENT_URL.rstrip("/")
+    async with AsyncClient() as client:
+        url = f"{base}/metrics"
+        resp = await client.get(url)
+        if resp.status_code >= 400 and base.endswith("/api/v1"):
+            root = base[: -len("/api/v1")]
+            resp = await client.get(f"{root}/metrics")
+        try:
+            data = resp.json()
+        except Exception:
+            data = resp.text or "ok"
+        return {"status_code": resp.status_code, "data": data}
+
 async def update_user(user_id: str, data: dict, admin_token: str):
     async with AsyncClient() as client:
         response = await client.put(
@@ -49,11 +94,35 @@ async def get_user_by_id(user_id: str, admin_token: str):
         response.raise_for_status()
         return response.json()
 
-async def get_properties(admin_token: str):
+async def get_properties(
+    location: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    amenities: list[str] | None = None,
+    search: str | None = None,
+    offset: int = 0,
+    limit: int = 20,
+):
+    params = {
+        "location": location,
+        "min_price": min_price,
+        "max_price": max_price,
+        "search": search,
+        "offset": offset,
+        "limit": limit,
+    }
+    # Handle amenities list: property listing often expects repeated query params or comma-separated.
+    # We'll send as repeated params if provided.
     async with AsyncClient() as client:
+        if amenities:
+            # httpx will encode list values as repeated params when a list is provided
+            params_with_amenities = {**params, "amenities": amenities}
+        else:
+            params_with_amenities = params
         response = await client.get(
             f"{_prop_base}{_prop_prefix}/properties",
-            headers={"Authorization": f"Bearer {settings.PROPERTY_TOKEN}"}
+            headers={"Authorization": f"Bearer {settings.PROPERTY_TOKEN}"},
+            params=params_with_amenities,
         )
         response.raise_for_status()
         return response.json()

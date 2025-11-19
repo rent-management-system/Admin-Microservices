@@ -16,3 +16,7 @@ async def startup():
 
 app.include_router(admin.router)
 app.include_router(auth_proxy.router)
+
+@app.get("/health")
+async def root_health():
+    return "ok"
