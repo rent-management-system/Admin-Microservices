@@ -11,7 +11,7 @@ redis==5.0.1
 structlog==23.2.0
 fastapi-limiter==0.1.6
 tenacity==8.2.3
-pandas==2.2.0
+pandas==2.1.4
 reportlab==4.0.6
 pytest==7.4.3
 pytest-asyncio==0.21.1
