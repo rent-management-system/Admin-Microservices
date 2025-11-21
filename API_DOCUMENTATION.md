@@ -17,14 +17,18 @@ All endpoints require a valid JWT token in the `Authorization` header (Bearer to
 *   **Permissions:** Authenticated Admin
 *   **User Types:** Admin
 *   **Position in Code:** `app/routers/admin.py` -> `list_users`
-*   **Parameters:** None
-*   **Response Model:** `List[UserResponse]`
-    *   `id`: `str` - Unique identifier of the user.
-    *   `email`: `str` - User's email address.
-    *   `role`: `str` - User's role (e.g., "Admin", "User", "Landlord").
-    *   `phone`: `Optional[str]` - User's phone number.
-    *   `is_active`: `bool` - Whether the user account is active.
-    *   `created_at`: `str` - Timestamp of user creation.
+*   **Parameters:**
+    *   `skip`: `int` (Optional, default: 0) - Number of items to skip.
+    *   `limit`: `int` (Optional, default: 100) - Maximum number of items to return.
+*   **Response Model:** `UserListResponse`
+    *   `users`: `List[UserResponse]` - A list of user objects.
+        *   `id`: `str` - Unique identifier of the user.
+        *   `email`: `str` - User's email address.
+        *   `role`: `str` - User's role (e.g., "Admin", "User", "Landlord").
+        *   `phone`: `Optional[str]` - User's phone number.
+        *   `is_active`: `bool` - Whether the user account is active.
+        *   `created_at`: `str` - Timestamp of user creation.
+    *   `total_users`: `int` - The total count of users available.
 *   **Examples:**
     *   **Request:**
         ```
@@ -33,24 +37,27 @@ All endpoints require a valid JWT token in the `Authorization` header (Bearer to
         ```
     *   **Response (200 OK):**
         ```json
-        [
-            {
-                "id": "user-id-1",
-                "email": "user1@example.com",
-                "role": "User",
-                "phone": "+1234567890",
-                "is_active": true,
-                "created_at": "2023-01-01T10:00:00Z"
-            },
-            {
-                "id": "user-id-2",
-                "email": "user2@example.com",
-                "role": "Landlord",
-                "phone": null,
-                "is_active": true,
-                "created_at": "2023-02-15T11:30:00Z"
-            }
-        ]
+        {
+            "users": [
+                {
+                    "id": "user-id-1",
+                    "email": "user1@example.com",
+                    "role": "User",
+                    "phone": "+1234567890",
+                    "is_active": true,
+                    "created_at": "2023-01-01T10:00:00Z"
+                },
+                {
+                    "id": "user-id-2",
+                    "email": "user2@example.com",
+                    "role": "Landlord",
+                    "phone": null,
+                    "is_active": true,
+                    "created_at": "2023-02-15T11:30:00Z"
+                }
+            ],
+            "total_users": 2
+        }
         ```
 
 ---
@@ -65,9 +72,13 @@ All endpoints require a valid JWT token in the `Authorization` header (Bearer to
 *   **Parameters:**
     *   **Path Parameter:**
         *   `user_id`: `str` - The unique identifier of the user to update.
-    *   **Request Body:** `dict` - JSON object containing the fields to update.
-        *   Example fields: `email`, `role`, `phone`, `is_active`.
+    *   **Request Body:** `UserUpdateRequest` - JSON object containing the fields to update.
+        *   `email`: `Optional[str]` - New email address for the user.
+        *   `role`: `Optional[str]` - New role for the user (e.g., "Admin", "User", "Landlord").
+        *   `phone`: `Optional[str]` - New phone number for the user.
+        *   `is_active`: `Optional[bool]` - New active status for the user.
 *   **Response Model:** `UserResponse` (updated user object)
+*   **Notes:** The upstream User Management Service currently exhibits limitations in supporting user updates via `PUT`/`PATCH`/`POST` methods, often returning `405 Method Not Allowed` or `404 Not Found`. This microservice attempts various patterns, but successful updates depend on the upstream service's capabilities.
 *   **Examples:**
     *   **Request:**
         ```
@@ -171,7 +182,52 @@ All endpoints require a valid JWT token in the `Authorization` header (Bearer to
 
 ---
 
-### 5. Check Health
+### 5. Payment Service Metrics
+
+*   **Method:** `GET`
+*   **Path:** `/api/v1/admin/payments/metrics`
+*   **Permissions:** None (Non-auth proxy)
+*   **User Types:** N/A
+*   **Position in Code:** `app/routers/admin.py` -> `payment_service_metrics`
+*   **Parameters:** None
+*   **Response Model:** `dict` - A dictionary containing various payment-related metrics.
+    *   `status_code`: `int` - The HTTP status code from the upstream payment service.
+    *   `data`: `dict` - A dictionary containing the payment metrics.
+        *   `total_payments`: `int` - Total number of payment transactions.
+        *   `pending_payments`: `int` - Number of pending payment transactions.
+        *   `success_payments`: `int` - Number of successful payment transactions.
+        *   `failed_payments`: `int` - Number of failed payment transactions.
+        *   `webhook_calls`: `int` - Number of webhook calls.
+        *   `initiate_calls`: `int` - Number of initiate payment calls.
+        *   `status_calls`: `int` - Number of payment status check calls.
+        *   `timeout_jobs_run`: `int` - Number of timeout jobs run.
+        *   `total_revenue`: `float` - Total revenue generated from payments.
+*   **Examples:**
+    *   **Request:**
+        ```
+        GET /api/v1/admin/payments/metrics
+        ```
+    *   **Response (200 OK):**
+        ```json
+        {
+            "status_code": 200,
+            "data": {
+                "total_payments": 100,
+                "pending_payments": 5,
+                "success_payments": 90,
+                "failed_payments": 5,
+                "webhook_calls": 200,
+                "initiate_calls": 150,
+                "status_calls": 300,
+                "timeout_jobs_run": 10,
+                "total_revenue": 150000.00
+            }
+        }
+        ```
+
+---
+
+### 6. Check Health
 
 *   **Method:** `GET`
 *   **Path:** `/api/v1/admin/health`

@@ -29,6 +29,20 @@ Schemas
     created_at?: string | null
   }
 
+- UserListResponse
+  {
+    users: UserResponse[],
+    total_users: number
+  }
+
+- UserUpdateRequest
+  {
+    email?: string,
+    role?: string,
+    phone?: string,
+    is_active?: boolean
+  }
+
 - ReportResponse
   {
     title: string,
@@ -63,17 +77,18 @@ Endpoints
 2) Users
 - GET /api/v1/admin/users
   - Query: skip (int), limit (int)
-  - Returns: UserResponse[]
+  - Returns: UserListResponse
   - Notes: Backend normalizes phone_number -> phone. created_at may be synthesized if absent.
 
 - GET /api/v1/admin/users/{user_id}
   - Returns: UserResponse
 
 - PUT /api/v1/admin/users/{user_id}
-  - Body: partial user fields (e.g., role, is_active)
+  - Body: UserUpdateRequest (partial user fields, e.g., role, is_active)
   - Returns: UserResponse on success.
   - Important: Upstream update API is not finalized. Backend retries several methods/paths.
     If upstream does not support any, you may receive 404/405 with a clear message.
+    The upstream User Management Service currently exhibits limitations in supporting user updates via `PUT`/`PATCH`/`POST` methods, often returning `405 Method Not Allowed` or `404 Not Found`. This microservice attempts various patterns, but successful updates depend on the upstream service's capabilities.
 
 3) Properties
 - GET /api/v1/admin/properties
@@ -90,6 +105,7 @@ Endpoints
 4) Payments (Proxies)
 - GET /api/v1/admin/payments/metrics
   - Returns: { status_code: number, data: object|string }
+  - Notes: The `data` object will include payment metrics such as `total_payments`, `pending_payments`, `success_payments`, `failed_payments`, `webhook_calls`, `initiate_calls`, `status_calls`, `timeout_jobs_run`, and `total_revenue`.
 
 - GET /api/v1/admin/payments/health (legacy alias)
   - Returns: { status_code: number, data: object|string }
