@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_limiter.depends import RateLimiter
-from app.schemas.admin import UserResponse, PropertyResponse, ReportResponse, MetricsTotalsResponse, UserListResponse
+from app.schemas.admin import UserResponse, PropertyResponse, ReportResponse, MetricsTotalsResponse, UserListResponse, UserUpdateRequest
 from app.services.admin import get_users, get_user_by_id, update_user, get_properties, approve_property, get_health, get_property_metrics, get_payment_metrics, get_payment_health, get_search_health, get_ai_health, get_dashboard_totals
 from app.services.reporting import generate_user_report, export_report
 from app.dependencies.auth import get_current_admin, oauth2_scheme
@@ -24,8 +24,8 @@ async def get_user_detail(user_id: str, admin: dict = Depends(get_current_admin)
     return user
 
 @router.put("/users/{user_id}", response_model=UserResponse)
-async def update_user_endpoint(user_id: str, data: dict, admin: dict = Depends(get_current_admin), token: str = Depends(oauth2_scheme)):
-    user = await update_user(user_id, data, token)
+async def update_user_endpoint(user_id: str, data: UserUpdateRequest, admin: dict = Depends(get_current_admin), token: str = Depends(oauth2_scheme)):
+    user = await update_user(user_id, data.model_dump(exclude_unset=True), token)
     logger.info("Updated user", user_id=user_id, admin_id=admin["id"])
     return user
 

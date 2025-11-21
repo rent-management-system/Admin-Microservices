@@ -35,3 +35,9 @@ class MetricsTotalsResponse(BaseModel):
 class UserListResponse(BaseModel):
     users: List[UserResponse]
     total_users: int
+
+class UserUpdateRequest(BaseModel):
+    email: Optional[str] = None
+    role: Optional[str] = None
+    phone: Optional[str] = None
+    is_active: Optional[bool] = None

@@ -139,7 +139,7 @@ async def get_ai_health():
 
 async def get_search_health():
     base = settings.SEARCH_FILTERS_URL.rstrip("/")
-    async with AsyncClient() as client:
+    async with AsyncClient(timeout=30.0) as client:
         url = f"{base}/health"
         resp = await client.get(url)
         # No special /api/v1 logic unless base includes it
@@ -154,16 +154,45 @@ async def get_search_health():
 
 async def get_payment_metrics():
     base = settings.PAYMENT_URL.rstrip("/")
-    async with AsyncClient() as client:
+    async with AsyncClient(timeout=30.0) as client:
         url = f"{base}/metrics"
         resp = await client.get(url)
+        logger.info(
+            "Payment metrics upstream response (attempt 1)",
+            url=url,
+            status_code=resp.status_code,
+            headers=dict(resp.headers),
+            body_text=resp.text,
+        )
         if resp.status_code >= 400 and base.endswith("/api/v1"):
             root = base[: -len("/api/v1")]
-            resp = await client.get(f"{root}/metrics")
+            url = f"{root}/metrics"
+            resp = await client.get(url)
+            logger.info(
+                "Payment metrics upstream response (attempt 2, fallback)",
+                url=url,
+                status_code=resp.status_code,
+                headers=dict(resp.headers),
+                body_text=resp.text,
+            )
         try:
-            data = resp.json()
+            json_data = resp.json()
+            logger.info("Payment metrics upstream response (parsed JSON)", data=json_data)
+            # Explicitly extract expected keys
+            extracted_data = {
+                "total_payments": json_data.get("total_payments", 0),
+                "pending_payments": json_data.get("pending_payments", 0),
+                "success_payments": json_data.get("success_payments", 0),
+                "failed_payments": json_data.get("failed_payments", 0),
+                "webhook_calls": json_data.get("webhook_calls", 0),
+                "initiate_calls": json_data.get("initiate_calls", 0),
+                "status_calls": json_data.get("status_calls", 0),
+                "timeout_jobs_run": json_data.get("timeout_jobs_run", 0),
+            }
+            data = extracted_data
         except Exception:
             data = resp.text or "ok"
+            logger.info("Payment metrics upstream response (raw text)", data=data)
         return {"status_code": resp.status_code, "data": data}
 
 async def update_user(user_id: str, data: dict, admin_token: str):
@@ -203,7 +232,15 @@ async def update_user(user_id: str, data: dict, admin_token: str):
                             url, data=data,
                             headers={**headers, "Content-Type": "application/x-www-form-urlencoded"}
                         )
-                logger.info("Update user attempt", method=method, mode=mode, status_code=resp.status_code, url=url)
+                logger.info(
+                    "Update user attempt",
+                    method=method,
+                    mode=mode,
+                    status_code=resp.status_code,
+                    url=url,
+                    body_text=resp.text,
+                    headers=dict(resp.headers)
+                )
                 last_resp = resp
                 if 200 <= resp.status_code < 300:
                     try:

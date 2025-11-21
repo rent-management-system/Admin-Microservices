@@ -18,7 +18,7 @@ async def get_current_admin(token: str = Depends(oauth2_scheme)):
     """Verify bearer token with the upstream service using several common patterns.
     Accepts various response shapes and enforces that the user has Admin role.
     """
-    async with AsyncClient(timeout=15.0) as client:
+    async with AsyncClient(timeout=30.0) as client:
         # 1) Preferred: POST JSON {"token": token}
         resp = await client.post(f"{_um_base}{_verify_path}", json={"token": token})
         logger.info(
