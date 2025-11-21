@@ -227,7 +227,93 @@ All endpoints require a valid JWT token in the `Authorization` header (Bearer to
 
 ---
 
-### 6. Check Health
+### 8. Check Health
+
+*   **Method:** `GET`
+*   **Path:** `/api/v1/properties/public`
+*   **Permissions:** None
+*   **User Types:** Public
+*   **Position in Code:** `app/routers/properties.py` -> `get_all_properties_public`
+*   **Parameters:**
+    *   `location`: `str` (Optional) - Filter properties by location.
+    *   `min_price`: `float` (Optional) - Filter properties by minimum price.
+    *   `max_price`: `float` (Optional) - Filter properties by maximum price.
+    *   `amenities`: `List[str]` (Optional) - Filter properties by a list of amenities.
+    *   `search`: `str` (Optional) - Search properties by title or description.
+    *   `offset`: `int` (Optional, default: 0) - Number of items to skip.
+    *   `limit`: `int` (Optional, default: 20) - Maximum number of items to return.
+*   **Response Model:** `PropertyListResponse`
+    *   `total`: `int` - Total number of approved properties matching the filters.
+    *   `items`: `List[PropertyResponse]` - Array of properties with full details.
+        *   `id`: `str` - Unique identifier of the property.
+        *   `title`: `str` - Title of the property listing.
+        *   `location`: `str` - Geographical location of the property.
+        *   `status`: `str` - Current status of the property (e.g., "pending", "approved", "rejected").
+        *   `owner_id`: `str` - Unique identifier of the property owner.
+        *   `price`: `float` - Listing price of the property.
+        *   `lat`: `Optional[float]` - Latitude coordinate of the property.
+        *   `lon`: `Optional[float]` - Longitude coordinate of the property.
+*   **Notes:** Only returns APPROVED listings.
+*   **Examples:**
+    *   **Request:**
+        ```
+        GET /api/v1/properties/public?location=Addis Ababa&min_price=1000&limit=5
+        ```
+    *   **Response (200 OK):**
+        ```json
+        {
+            "total": 1,
+            "items": [
+                {
+                    "id": "property-id-1",
+                    "title": "Cozy Apartment",
+                    "location": "Addis Ababa",
+                    "status": "approved",
+                    "owner_id": "owner-id-1",
+                    "price": 1500.00,
+                    "lat": 8.9806,
+                    "lon": 38.7578
+                }
+            ]
+        }
+        ```
+
+---
+
+### 7. Public Single Property
+
+*   **Method:** `GET`
+*   **Path:** `/api/v1/properties/public/{property_id}`
+*   **Permissions:** None
+*   **User Types:** Public
+*   **Position in Code:** `app/routers/properties.py` -> `get_property_public`
+*   **Parameters:**
+    *   **Path Parameter:**
+        *   `property_id`: `str` - The unique identifier of the property.
+*   **Response Model:** `PropertyResponse`
+*   **Notes:** Returns full details if the property is APPROVED; otherwise 404.
+*   **Examples:**
+    *   **Request:**
+        ```
+        GET /api/v1/properties/public/property-id-1
+        ```
+    *   **Response (200 OK):**
+        ```json
+        {
+            "id": "property-id-1",
+            "title": "Cozy Apartment",
+            "location": "Addis Ababa",
+            "status": "approved",
+            "owner_id": "owner-id-1",
+            "price": 1500.00,
+            "lat": 8.9806,
+            "lon": 38.7578
+        }
+        ```
+
+---
+
+### 8. Check Health
 
 *   **Method:** `GET`
 *   **Path:** `/api/v1/admin/health`
@@ -268,7 +354,7 @@ All endpoints require a valid JWT token in the `Authorization` header (Bearer to
 
 ---
 
-### 6. Generate User Report
+### 9. Generate User Report
 
 *   **Method:** `GET`
 *   **Path:** `/api/v1/admin/reports/users`
@@ -317,7 +403,7 @@ All endpoints require a valid JWT token in the `Authorization` header (Bearer to
 
 ---
 
-### 7. Export Report
+### 10. Export Report
 
 *   **Method:** `GET`
 *   **Path:** `/api/v1/admin/reports/export/{type}`

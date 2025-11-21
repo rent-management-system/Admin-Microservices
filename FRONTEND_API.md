@@ -102,6 +102,15 @@ Endpoints
   - Returns: { status_code: number, data: object|string }
   - Notes: This endpoint proxies upstream and will not 500; it surfaces upstream status_code and payload.
 
+- GET /api/v1/properties/public
+  - Query (optional): location, min_price, max_price, amenities (repeatable), search, offset, limit
+  - Returns: PropertyListResponse (total: number, items: PropertyResponse[])
+  - Notes: Only returns APPROVED listings.
+
+- GET /api/v1/properties/public/{property_id}
+  - Returns: PropertyResponse
+  - Notes: Returns full details if property is APPROVED; otherwise 404.
+
 4) Payments (Proxies)
 - GET /api/v1/admin/payments/metrics
   - Returns: { status_code: number, data: object|string }
@@ -183,6 +192,12 @@ HTTP Examples (curl)
 - Properties metrics
   curl -H "Authorization: Bearer $TOKEN" \
     "http://localhost:8008/api/v1/admin/properties/metrics"
+
+- List public properties
+  curl "http://localhost:8008/api/v1/properties/public?location=Addis Ababa&limit=5"
+
+- Get single public property
+  curl "http://localhost:8008/api/v1/properties/public/<PROPERTY_ID>"
 
 - Unified health (concise)
   curl -H "Authorization: Bearer $TOKEN" \

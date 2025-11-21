@@ -10,14 +10,14 @@ from typing import List
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
-@router.get("/users", response_model=UserListResponse, dependencies=[Depends(RateLimiter(times=5, seconds=60))])
+@router.get("/users", response_model=UserListResponse)
 async def list_users(skip: int = 0, limit: int = 100, admin: dict = Depends(get_current_admin), token: str = Depends(oauth2_scheme)):
     users = await get_users(token, skip=skip, limit=limit)
     total_users = len(users)
     logger.info("Fetched users", admin_id=admin["id"])
     return {"users": users, "total_users": total_users}
 
-@router.get("/users/{user_id}", response_model=UserResponse, dependencies=[Depends(RateLimiter(times=10, seconds=60))])
+@router.get("/users/{user_id}", response_model=UserResponse)
 async def get_user_detail(user_id: str, admin: dict = Depends(get_current_admin), token: str = Depends(oauth2_scheme)):
     user = await get_user_by_id(user_id, token)
     logger.info("Fetched user detail", user_id=user_id, admin_id=admin["id"])
@@ -78,7 +78,7 @@ async def payment_service_metrics():
     return status
 
 # Aggregated totals for dashboard widgets
-@router.get("/metrics/totals", response_model=MetricsTotalsResponse, dependencies=[Depends(RateLimiter(times=5, seconds=60))])
+@router.get("/metrics/totals", response_model=MetricsTotalsResponse)
 async def metrics_totals(admin: dict = Depends(get_current_admin), token: str = Depends(oauth2_scheme)):
     totals = await get_dashboard_totals(token)
     logger.info("Fetched dashboard totals", admin_id=admin["id"])

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional, Dict
+from app.schemas.property import PropertyResponse # Import from new file
 
 class UserResponse(BaseModel):
     id: str
@@ -8,16 +9,6 @@ class UserResponse(BaseModel):
     phone: Optional[str] = None
     is_active: bool
     created_at: Optional[str] = None
-
-class PropertyResponse(BaseModel):
-    id: str
-    title: str
-    location: str
-    status: str
-    owner_id: str
-    price: float
-    lat: Optional[float]
-    lon: Optional[float]
 
 class ReportResponse(BaseModel):
     title: str

@@ -8,8 +8,18 @@ from app.models.admin_log import AdminLog
 from redis.asyncio import Redis
 from datetime import datetime, timezone
 from urllib.parse import urlparse
+import json
 
 logger = get_logger()
+
+# Initialize Redis client globally for reuse
+redis_client: Redis | None = None
+
+async def get_redis_client():
+    global redis_client
+    if redis_client is None:
+        redis_client = Redis.from_url(settings.REDIS_URL)
+    return redis_client
 
 def _normalize_user(u: dict) -> dict:
     """Normalize upstream user payload to our schema.
@@ -328,6 +338,15 @@ async def approve_property(property_id: str, admin_id: str):
             await session.commit()
 
 async def get_health(verbose: bool = False):
+    redis = await get_redis_client()
+    cache_key = "cached_health_status"
+
+    if not verbose: # Only serve from cache if not verbose
+        cached_health = await redis.get(cache_key)
+        if cached_health:
+            logger.info("Returning cached health status")
+            return json.loads(cached_health)
+
     # Explicit mapping from service key to settings attribute name
     env_map = {
         "user_management": "USER_MANAGEMENT_URL",
@@ -389,7 +408,7 @@ async def get_health(verbose: bool = False):
                         snippet = (resp.text or "").strip()
                         if snippet and len(snippet) > 200:
                             snippet = snippet[:200] + "..."
-                        payload = {"message": snippet or "ok"}
+                        payload = {"message": snippet or "error"}
 
                 entry = {
                     "status_code": resp.status_code,
@@ -428,6 +447,9 @@ async def get_health(verbose: bool = False):
         overall = "down"
     health["overall_status"] = overall
     health["summary"] = {"ok": ok_services, "errors": error_services, "total": sum(1 for k in env_map.keys() if k not in optional), "optional_ignored": len(optional)}
+    
+    # Cache the result before returning
+    await redis.setex(cache_key, 300, json.dumps(health)) # Cache for 5 minutes
     return health
 
 async def get_property_metrics():
