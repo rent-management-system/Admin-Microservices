@@ -188,6 +188,7 @@ async def get_payment_metrics():
                 "initiate_calls": json_data.get("initiate_calls", 0),
                 "status_calls": json_data.get("status_calls", 0),
                 "timeout_jobs_run": json_data.get("timeout_jobs_run", 0),
+                "total_revenue": json_data.get("total_revenue", 0.0), # Assuming float for revenue
             }
             data = extracted_data
         except Exception:
