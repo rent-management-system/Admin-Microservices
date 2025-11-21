@@ -31,3 +31,7 @@ class MetricsTotalsResponse(BaseModel):
     healthy_services: int
     properties_by_type: Dict[str, int] | None = None
     properties_by_status: Dict[str, int] | None = None
+
+class UserListResponse(BaseModel):
+    users: List[UserResponse]
+    total_users: int

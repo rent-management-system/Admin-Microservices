@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_limiter.depends import RateLimiter
-from app.schemas.admin import UserResponse, PropertyResponse, ReportResponse, MetricsTotalsResponse
+from app.schemas.admin import UserResponse, PropertyResponse, ReportResponse, MetricsTotalsResponse, UserListResponse
 from app.services.admin import get_users, get_user_by_id, update_user, get_properties, approve_property, get_health, get_property_metrics, get_payment_metrics, get_payment_health, get_search_health, get_ai_health, get_dashboard_totals
 from app.services.reporting import generate_user_report, export_report
 from app.dependencies.auth import get_current_admin, oauth2_scheme
@@ -10,11 +10,12 @@ from typing import List
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
-@router.get("/users", response_model=List[UserResponse], dependencies=[Depends(RateLimiter(times=5, seconds=60))])
+@router.get("/users", response_model=UserListResponse, dependencies=[Depends(RateLimiter(times=5, seconds=60))])
 async def list_users(skip: int = 0, limit: int = 100, admin: dict = Depends(get_current_admin), token: str = Depends(oauth2_scheme)):
     users = await get_users(token, skip=skip, limit=limit)
+    total_users = len(users)
     logger.info("Fetched users", admin_id=admin["id"])
-    return users
+    return {"users": users, "total_users": total_users}
 
 @router.get("/users/{user_id}", response_model=UserResponse, dependencies=[Depends(RateLimiter(times=10, seconds=60))])
 async def get_user_detail(user_id: str, admin: dict = Depends(get_current_admin), token: str = Depends(oauth2_scheme)):
