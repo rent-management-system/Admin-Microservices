@@ -11,13 +11,7 @@ import json
 import asyncio
 
 app = FastAPI(title="Admin Management Microservice")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:8080", "https://rent-management-landlord-frontend.vercel.app"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 scheduler = AsyncIOScheduler()
 redis_client: Redis | None = None
