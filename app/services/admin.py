@@ -306,6 +306,8 @@ async def get_properties(
         "offset": offset,
         "limit": limit,
     }
+    # Filter out None values
+    params = {k: v for k, v in params.items() if v is not None}
     # Handle amenities list: property listing often expects repeated query params or comma-separated.
     # We'll send as repeated params if provided.
     async with AsyncClient() as client:

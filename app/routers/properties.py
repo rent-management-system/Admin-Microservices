@@ -78,7 +78,6 @@ async def get_property_public(property_id: str):
         try:
             response = await client.get(
                 f"{_prop_base}{_prop_prefix}/properties/{property_id}",
-                headers={"Authorization": f"Bearer {settings.PROPERTY_TOKEN}"},
             )
             response.raise_for_status()
             property_data = response.json()

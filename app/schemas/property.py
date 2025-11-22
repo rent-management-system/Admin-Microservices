@@ -6,7 +6,7 @@ class PropertyResponse(BaseModel):
     title: str
     location: str
     status: str
-    owner_id: str
+    owner_id: Optional[str] = None
     price: float
     lat: Optional[float]
     lon: Optional[float]
