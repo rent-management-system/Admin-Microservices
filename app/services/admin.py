@@ -9,6 +9,7 @@ from redis.asyncio import Redis
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 import json
+import asyncio
 
 logger = get_logger()
 
@@ -456,7 +457,7 @@ async def get_health(verbose: bool = False):
 
 async def get_property_metrics():
     base = _prop_base
-    async with AsyncClient(timeout=15.0) as client:
+    async with AsyncClient(timeout=30.0) as client:
         url = f"{base}{_prop_prefix}/properties/metrics"
         resp = await client.get(url, headers={"Authorization": f"Bearer {settings.PROPERTY_TOKEN}"})
         # If 4xx/5xx and base ends with /api/v1, try root without it
@@ -580,6 +581,8 @@ async def get_dashboard_totals(admin_token: str | None = None) -> dict:
                 pass
         totals["total_users"] = int(users_total or 0)
 
+        await asyncio.sleep(0.2)
+
         # Properties total
         # Prefer metrics endpoint
         prop_metrics = await get_property_metrics()
@@ -630,6 +633,9 @@ async def get_dashboard_totals(admin_token: str | None = None) -> dict:
                     prop_by_status = tmp
         if prop_total is None:
             prop_total = await _head_or_first_for_total(client, f"{_prop_base}{_prop_prefix}/properties", headers=prop_headers)
+        
+        await asyncio.sleep(0.2)
+
         # If we still need totals or type breakdown, fetch first page and compute
         if prop_total is None or prop_by_type is None or prop_by_status is None:
             try:
@@ -688,6 +694,8 @@ async def get_dashboard_totals(admin_token: str | None = None) -> dict:
         if prop_by_status:
             totals["properties_by_status"] = prop_by_status
 
+        await asyncio.sleep(0.2)
+
         # Payments total via payment metrics
         pay_metrics = await get_payment_metrics()
         pay_total = None
@@ -707,6 +715,8 @@ async def get_dashboard_totals(admin_token: str | None = None) -> dict:
             except Exception:
                 pass
         totals["total_payments"] = int(pay_total or 0)
+
+    await asyncio.sleep(0.2)
 
     # Services health
     health = await get_health(verbose=False)

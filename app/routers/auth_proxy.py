@@ -76,7 +76,7 @@ async def proxy_auth_login(form_data: OAuth2PasswordRequestForm = Depends()):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Auth proxy exception", error=str(e))
+        logger.error("Auth proxy exception", error=str(e), error_repr=repr(e))
         raise HTTPException(status_code=502, detail=f"Auth proxy error: {e}")
 
 @router.post("/auth/change-password")

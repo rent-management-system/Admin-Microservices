@@ -39,7 +39,7 @@ async def list_properties(
     offset: int = 0,
     limit: int = 20,
 ):
-    properties = await get_properties(
+    properties_data = await get_properties(
         location=location,
         min_price=min_price,
         max_price=max_price,
@@ -49,7 +49,11 @@ async def list_properties(
         limit=limit,
     )
     logger.info("Fetched properties")
-    return properties
+    if isinstance(properties_data, dict):
+        return properties_data.get("items", [])
+    elif isinstance(properties_data, list):
+        return properties_data
+    return []
 
 @router.post("/properties/{property_id}/approve")
 async def approve_property_endpoint(property_id: str, admin: dict = Depends(get_current_admin)):
