@@ -44,10 +44,5 @@ app.include_router(auth_proxy.router)
 app.include_router(properties.router) # Include the new properties router
 
 @app.get("/health")
-@app.options("/health")
 async def root_health():
     return "ok"
-
-@app.options("/{path:path}")
-async def options_handler(path: str):
-    return {"message": "OK"}
