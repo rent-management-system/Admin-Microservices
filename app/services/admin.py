@@ -310,7 +310,7 @@ async def get_properties(
     params = {k: v for k, v in params.items() if v is not None}
     # Handle amenities list: property listing often expects repeated query params or comma-separated.
     # We'll send as repeated params if provided.
-    async with AsyncClient() as client:
+    async with AsyncClient(timeout=15.0) as client:
         if amenities:
             # httpx will encode list values as repeated params when a list is provided
             params_with_amenities = {**params, "amenities": amenities}
