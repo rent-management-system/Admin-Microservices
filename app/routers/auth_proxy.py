@@ -16,46 +16,41 @@ router = APIRouter()
 
 @router.post("/auth/login")
 async def proxy_auth_login(form_data: OAuth2PasswordRequestForm = Depends()):
-    # Many services expect JSON {"email": ..., "password": ...}
-    json_body = {
-        "email": form_data.username,
+    # Prioritize form-encoded data as OAuth2PasswordRequestForm is typically for this
+    form_payload = {
+        "username": form_data.username,
         "password": form_data.password,
+        "grant_type": form_data.grant_type or "password",
     }
     try:
         async with AsyncClient(timeout=15.0) as client:
-            # Attempt JSON first
+            # Attempt with form-encoded data first
             resp = await client.post(
-                f"{_um_base}{_login_path}", json=json_body
+                f"{_um_base}{_login_path}", data=form_payload,
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
             )
             logger.info(
-                "Auth proxy upstream response",
+                "Auth proxy upstream response (form-encoded)",
                 upstream=f"{_um_base}{_login_path}",
                 status_code=resp.status_code,
             )
-            # If upstream rejects JSON (common when expecting form-encoded or different field names)
-            # If 422 complaining about missing username/password, retry JSON with those field names
+
+            # If form-encoded fails with 422, try JSON with username/password
             if resp.status_code == 422:
-                alt_json = {"username": form_data.username, "password": form_data.password}
-                resp = await client.post(f"{_um_base}{_login_path}", json=alt_json)
+                json_body = {"username": form_data.username, "password": form_data.password}
+                resp = await client.post(f"{_um_base}{_login_path}", json=json_body)
                 logger.info(
                     "Auth proxy retried with JSON username/password",
                     upstream=f"{_um_base}{_login_path}",
                     status_code=resp.status_code,
                 )
-
-            # If still failing or upstream rejects JSON content type, retry with form data
-            if resp.status_code in (400, 401, 415, 422):
-                form_payload = {
-                    "username": form_data.username,
-                    "password": form_data.password,
-                    "grant_type": form_data.grant_type or "password",
-                }
-                resp = await client.post(
-                    f"{_um_base}{_login_path}", data=form_payload,
-                    headers={"Content-Type": "application/x-www-form-urlencoded"}
-                )
+            
+            # If still failing with 422, try JSON with email/password
+            if resp.status_code == 422:
+                json_body_email = {"email": form_data.username, "password": form_data.password}
+                resp = await client.post(f"{_um_base}{_login_path}", json=json_body_email)
                 logger.info(
-                    "Auth proxy retried with form-encoded",
+                    "Auth proxy retried with JSON email/password",
                     upstream=f"{_um_base}{_login_path}",
                     status_code=resp.status_code,
                 )
